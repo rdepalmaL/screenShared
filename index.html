@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>HuskySharedScreen</title>
+</head>
+<body>
+  <h1>HuskySharedScreen</h1>
+  <p>Compartilhamento de tela automático em 1080p.</p>
+
+  <script type="module">
+    import { ActivitySDK } from "https://cdn.skypack.dev/@discord/activities-sdk";
+
+    const sdk = new ActivitySDK();
+
+    sdk.ready().then(() => {
+      const userId = sdk.userId;
+      const streamId = "husky_" + userId;
+
+      const pushLink = `https://vdo.ninja/?push=${streamId}&screen&quality=9&fps=60&width=1920&height=1080`;
+      const viewLink = `https://vdo.ninja/?view=${streamId}&videobitrate=10000&scale=100`;
+
+      // Abre o iframe com o compartilhamento de tela
+      sdk.activities.openIframe(pushLink);
+
+      console.log("Link de visualização:", viewLink);
+    });
+  </script>
+</body>
+</html>
