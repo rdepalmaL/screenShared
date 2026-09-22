@@ -1,54 +1,85 @@
 import express from "express";
 import { WebSocketServer } from "ws";
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
+const rootDir = path.join(__dirname, "..");
 
-// Rota básica para teste
-app.get("/", (req, res) => {
-  res.send("Servidor HuskySharedScreen ativo!");
+app.use(express.static(rootDir));
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, time: new Date().toISOString() });
 });
 
-// WebSocket para sinalização
 const wss = new WebSocketServer({ noServer: true });
 const streams = new Map();
 
-wss.on("connection", (ws, request) => {
-  const params = new URLSearchParams(request.url.replace("/?", ""));
-  const streamId = params.get("stream");
+function getStream(streamId) {
+  if (!streams.has(streamId)) {
+    streams.set(streamId, { clients: new Set(), offer: null });
+  }
+  return streams.get(streamId);
+}
 
-  if (!streamId) {
-    ws.close();
+wss.on("connection", (ws, request) => {
+  const url = new URL(request.url, `http://${request.headers.host}`);
+  const streamId = url.searchParams.get("stream");
+
+  if (!streamId || !/^husky_[0-9]{6}$/.test(streamId)) {
+    ws.close(1008, "Invalid stream ID");
     return;
   }
 
-  if (!streams.has(streamId)) {
-    streams.set(streamId, []);
-  }
-  streams.get(streamId).push(ws);
+  const stream = getStream(streamId);
+  stream.clients.add(ws);
 
-  ws.on("message", (msg) => {
-    // Repassa mensagens de sinalização para todos os clientes do mesmo streamId
-    streams.get(streamId).forEach(client => {
-      if (client !== ws && client.readyState === ws.OPEN) {
-        client.send(msg);
+  // A viewer that joins later receives the current offer and can answer it.
+  if (stream.offer && stream.offer.type === "offer") {
+    ws.send(JSON.stringify({ offer: stream.offer }));
+  }
+
+  ws.on("message", (rawMessage) => {
+    try {
+      const message = JSON.parse(rawMessage.toString());
+
+      if (message.offer?.type === "offer") {
+        stream.offer = message.offer;
       }
-    });
+
+      for (const client of stream.clients) {
+        if (client !== ws && client.readyState === 1) {
+          client.send(JSON.stringify(message));
+        }
+      }
+    } catch (error) {
+      console.error("Mensagem WebSocket inválida:", error);
+    }
   });
 
   ws.on("close", () => {
-    const arr = streams.get(streamId) || [];
-    streams.set(streamId, arr.filter(c => c !== ws));
+    stream.clients.delete(ws);
+    if (stream.clients.size === 0) {
+      streams.delete(streamId);
+    }
   });
 });
 
-// Integrar WebSocket com servidor HTTP
 const server = app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
 
-server.on("upgrade", (req, socket, head) => {
-  wss.handleUpgrade(req, socket, head, (ws) => {
-    wss.emit("connection", ws, req);
+server.on("upgrade", (request, socket, head) => {
+  const url = new URL(request.url, `http://${request.headers.host}`);
+  if (url.pathname !== "/api/vdo") {
+    socket.destroy();
+    return;
+  }
+
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit("connection", ws, request);
   });
 });
