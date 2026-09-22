@@ -1,0 +1,18 @@
+{
+  "name": "screen-shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Compartilhamento de tela em tempo real com WebRTC e WebSocket",
+  "scripts": {
+    "start": "node api/vdo.js",
+    "dev": "node api/vdo.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
