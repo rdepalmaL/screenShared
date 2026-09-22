@@ -13,68 +13,183 @@
     a { color: #4cafef; text-decoration: none; }
     footer { margin-top: 40px; padding: 20px; text-align: center; background: #222; }
     footer a { margin: 0 10px; color: #aaa; }
-    #share-btn { margin: 20px; padding: 12px 20px; background: #4cafef; color: #111; font-weight: bold; border: 0; border-radius: 6px; cursor: pointer; }
+    .controls { display: flex; gap: 12px; align-items: center; }
+    button { margin: 20px; padding: 12px 20px; background: #4cafef; color: #111; font-weight: bold; border: 0; border-radius: 6px; cursor: pointer; }
+    #stop-btn { background: #d14d4d; color: white; display: none; }
+    #stop-btn.visible { display: inline-block; }
   </style>
 </head>
 <body>
   <h1>HuskySharedScreen</h1>
   <p>Compartilhamento de tela automático em 1080p.</p>
-  <button id="share-btn">SELECT SCREEN TO SHARE</button>
+
+  <div class="controls">
+    <button id="share-btn">SELECT SCREEN TO SHARE</button>
+    <button id="stop-btn">PARAR COMPARTILHAMENTO</button>
+  </div>
+
   <div id="video-container"></div>
-  <div id="streams"><h2>Streams ativos:</h2><div id="stream-list"></div></div>
+
+  <div id="streams">
+    <h2>Streams ativos:</h2>
+    <div id="stream-list"></div>
+  </div>
+
   <script>
     const container = document.getElementById("video-container");
     const list = document.getElementById("stream-list");
     const shareBtn = document.getElementById("share-btn");
+    const stopBtn = document.getElementById("stop-btn");
+
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     const wsBase = window.SCREEN_SHARED_WS_URL || `${protocol}://${location.host}`;
     const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
+    let currentStream = null;
+    let currentPc = null;
+    let currentWs = null;
+    let currentStreamId = null;
+
+    function stopSharing() {
+      if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+        currentWs.send(JSON.stringify({ publisherStopped: true }));
+      }
+
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+
+      if (currentPc) {
+        currentPc.close();
+      }
+
+      if (currentWs) {
+        currentWs.close();
+      }
+
+      currentStream = null;
+      currentPc = null;
+      currentWs = null;
+      currentStreamId = null;
+
+      container.innerHTML = "";
+      shareBtn.disabled = false;
+      stopBtn.classList.remove("visible");
+      shareBtn.textContent = "SELECT SCREEN TO SHARE";
+    }
+
+    stopBtn.addEventListener("click", () => {
+      stopSharing();
+    });
+
     shareBtn.addEventListener("click", async () => {
+      if (currentWs || currentPc || currentStream) {
+        stopSharing();
+        return;
+      }
+
       try {
         shareBtn.disabled = true;
-        const media = await navigator.mediaDevices.getDisplayMedia({ video: { width: 1920, height: 1080, frameRate: 60 }, audio: true });
-        const streamId = `husky_${Math.floor(100000 + Math.random() * 900000)}`;
-        const pc = new RTCPeerConnection(rtcConfig);
+        const media = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: 1920, height: 1080, frameRate: 60 },
+          audio: true
+        });
+
+        currentStreamId = `husky_${Math.floor(100000 + Math.random() * 900000)}`;
+        currentStream = media;
+        currentPc = new RTCPeerConnection(rtcConfig);
         const pendingCandidates = [];
         let wsOpen = false;
         const pendingMessages = [];
-        media.getTracks().forEach(track => track.addEventListener("ended", () => wsOpen && ws.send(JSON.stringify({ publisherStopped: true }))));
-        media.getTracks().forEach(track => pc.addTrack(track, media));
 
-        const ws = new WebSocket(`${wsBase}/api/vdo?stream=${encodeURIComponent(streamId)}&role=publisher`);
-        const send = (message) => wsOpen ? ws.send(JSON.stringify(message)) : pendingMessages.push(message);
-        ws.onopen = () => { wsOpen = true; while (pendingMessages.length) ws.send(JSON.stringify(pendingMessages.shift())); };
-        ws.onerror = () => alert("Não foi possível conectar ao servidor de sinalização.");
-        ws.onmessage = async ({ data }) => {
-          const message = JSON.parse(data);
-          if (message.answer) {
-            await pc.setRemoteDescription(message.answer);
-            while (pendingCandidates.length) await pc.addIceCandidate(pendingCandidates.shift());
-          }
-          if (message.candidate) {
-            if (pc.remoteDescription) await pc.addIceCandidate(message.candidate);
-            else pendingCandidates.push(message.candidate);
+        media.getTracks().forEach(track => {
+          currentPc.addTrack(track, media);
+          track.addEventListener("ended", () => {
+            if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+              currentWs.send(JSON.stringify({ publisherStopped: true }));
+            }
+            stopSharing();
+          });
+        });
+
+        currentWs = new WebSocket(`${wsBase}/api/vdo?stream=${encodeURIComponent(currentStreamId)}&role=publisher`);
+
+        const send = (message) => {
+          if (wsOpen) {
+            currentWs.send(JSON.stringify(message));
+          } else {
+            pendingMessages.push(message);
           }
         };
-        pc.onicecandidate = ({ candidate }) => { if (candidate) send({ candidate }); };
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
+
+        currentWs.onopen = () => {
+          wsOpen = true;
+          while (pendingMessages.length) {
+            currentWs.send(JSON.stringify(pendingMessages.shift()));
+          }
+        };
+
+        currentWs.onerror = () => {
+          alert("Não foi possível conectar ao servidor de sinalização.");
+          stopSharing();
+        };
+
+        currentWs.onmessage = async ({ data }) => {
+          const message = JSON.parse(data);
+          if (message.answer) {
+            await currentPc.setRemoteDescription(message.answer);
+            while (pendingCandidates.length) {
+              await currentPc.addIceCandidate(pendingCandidates.shift());
+            }
+          }
+
+          if (message.candidate) {
+            if (currentPc.remoteDescription) {
+              await currentPc.addIceCandidate(message.candidate);
+            } else {
+              pendingCandidates.push(message.candidate);
+            }
+          }
+        };
+
+        currentPc.onicecandidate = ({ candidate }) => {
+          if (candidate) send({ candidate });
+        };
+
+        const offer = await currentPc.createOffer();
+        await currentPc.setLocalDescription(offer);
         send({ offer });
 
         const video = document.createElement("video");
-        video.srcObject = media; video.autoplay = true; video.muted = true; video.playsInline = true;
-        video.style.width = "100%"; video.style.height = "100%";
-        container.replaceChildren(video);
-        const item = document.createElement("div"); item.className = "stream-item";
-        const link = `${location.origin}/viewer.html?view=${streamId}`;
-        item.innerHTML = `<a href="${link}" target="_blank">Assistir stream (${streamId})</a>`;
+        video.srcObject = media;
+        video.autoplay = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.style.width = "100%";
+        video.style.height = "100%";
+        container.innerHTML = "";
+        container.appendChild(video);
+
+        const item = document.createElement("div");
+        item.className = "stream-item";
+        const link = `${location.origin}/viewer.html?view=${currentStreamId}`;
+        item.innerHTML = `<a href="${link}" target="_blank">Assistir stream (${currentStreamId})</a>`;
         list.appendChild(item);
+
+        shareBtn.textContent = "COMPARTILHANDO...";
+        stopBtn.classList.add("visible");
       } catch (error) {
-        shareBtn.disabled = false;
-        alert(`Erro ao iniciar compartilhamento: ${error.message}`);
+        alert("Erro ao iniciar compartilhamento: " + error.message);
+        stopSharing();
       }
     });
   </script>
+
+  <footer>
+    <p>
+      <a href="privacidade.html" target="_blank">Política de Privacidade</a> | 
+      <a href="termos.html" target="_blank">Termos de Serviço</a>
+    </p>
+  </footer>
 </body>
 </html>

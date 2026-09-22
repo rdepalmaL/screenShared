@@ -30,29 +30,57 @@
     if (!streamId) {
       status.textContent = "Stream ID não encontrado na URL.";
     } else {
-      pc.ontrack = ({ streams }) => { if (streams[0]) { video.srcObject = streams[0]; video.play().catch(() => {}); status.textContent = "Compartilhamento conectado."; } };
+      pc.ontrack = ({ streams }) => {
+        if (streams[0]) {
+          video.srcObject = streams[0];
+          video.play().catch(() => {});
+          status.textContent = "Compartilhamento conectado.";
+        }
+      };
+
       const ws = new WebSocket(`${wsBase}/api/vdo?stream=${encodeURIComponent(streamId)}&role=viewer`);
       const addCandidate = async (candidate) => {
-        if (remoteDescriptionSet) await pc.addIceCandidate(candidate);
-        else pendingCandidates.push(candidate);
+        if (remoteDescriptionSet) {
+          await pc.addIceCandidate(candidate);
+        } else {
+          pendingCandidates.push(candidate);
+        }
       };
+
       ws.onopen = () => { status.textContent = "Aguardando o compartilhamento..."; };
       ws.onerror = () => { status.textContent = "Erro ao conectar ao servidor."; };
       ws.onclose = () => { if (!video.srcObject) status.textContent = "Conexão encerrada."; };
+
       ws.onmessage = async ({ data }) => {
         const message = JSON.parse(data);
-        if (message.publisherStopped) { status.textContent = "O compartilhamento foi encerrado."; return; }
-        if (message.candidate) await addCandidate(message.candidate);
+        if (message.publisherStopped) {
+          status.textContent = "O compartilhamento foi encerrado.";
+          video.srcObject = null;
+          return;
+        }
+
+        if (message.candidate) {
+          await addCandidate(message.candidate);
+          return;
+        }
+
         if (message.offer) {
           await pc.setRemoteDescription(message.offer);
           remoteDescriptionSet = true;
-          while (pendingCandidates.length) await pc.addIceCandidate(pendingCandidates.shift());
+          while (pendingCandidates.length) {
+            await pc.addIceCandidate(pendingCandidates.shift());
+          }
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           ws.send(JSON.stringify({ answer }));
         }
       };
-      pc.onicecandidate = ({ candidate }) => { if (candidate && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ candidate })); };
+
+      pc.onicecandidate = ({ candidate }) => {
+        if (candidate && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ candidate }));
+        }
+      };
     }
   </script>
   <footer><p><a href="privacidade.html" target="_blank">Política de Privacidade</a> | <a href="termos.html" target="_blank">Termos de Serviço</a></p></footer>
