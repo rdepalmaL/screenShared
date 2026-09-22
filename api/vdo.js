@@ -9,7 +9,6 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const rootDir = path.join(__dirname, "..");
 
-// The Discord connection entry point must open the Activity itself.
 app.get("/auth/discord", (_req, res) => {
   res.redirect(302, "/");
 });
@@ -47,6 +46,15 @@ wss.on("connection", (ws, request) => {
   }
 
   const stream = getStream(streamId);
+
+  if (role === "viewer" && stream.viewers.size >= 1) {
+    send(ws, {
+      viewerRejected: true,
+      message: "Apenas um visualizador por vez é suportado nesta versão. Feche a janela atual ou gere uma nova transmissão."
+    });
+    ws.close(1013, "Only one viewer allowed per stream");
+    return;
+  }
 
   if (role === "publisher") {
     if (stream.publisher && stream.publisher !== ws) stream.publisher.close(1000, "Replaced publisher");
