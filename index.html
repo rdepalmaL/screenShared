@@ -5,105 +5,76 @@
   <title>HuskySharedScreen</title>
   <style>
     body { font-family: Arial, sans-serif; background: #111; color: #eee; margin: 0; padding: 0; }
-    h1 { color: #4cafef; padding: 20px 20px 0 20px; margin: 0; }
+    h1 { color: #4cafef; padding: 20px 20px 0; margin: 0; }
     p { padding: 0 20px; }
     #video-container { margin: 20px; background: #000; border-radius: 8px; overflow: hidden; height: 520px; }
     #streams { margin-top: 20px; padding: 0 20px; }
     .stream-item { margin: 10px 0; }
     a { color: #4cafef; text-decoration: none; }
-    a:hover { text-decoration: underline; }
     footer { margin-top: 40px; padding: 20px; text-align: center; background: #222; }
     footer a { margin: 0 10px; color: #aaa; }
-    footer a:hover { color: #fff; }
-    #share-btn { display: inline-block; margin: 20px; padding: 12px 20px; background: #4cafef; color: #111; font-weight: bold; border-radius: 6px; cursor: pointer; }
-    #share-btn:hover { background: #6ccaff; }
+    #share-btn { margin: 20px; padding: 12px 20px; background: #4cafef; color: #111; font-weight: bold; border: 0; border-radius: 6px; cursor: pointer; }
   </style>
 </head>
 <body>
   <h1>HuskySharedScreen</h1>
   <p>Compartilhamento de tela automático em 1080p.</p>
-
   <button id="share-btn">SELECT SCREEN TO SHARE</button>
-
   <div id="video-container"></div>
-
-  <div id="streams">
-    <h2>Streams ativos:</h2>
-    <div id="stream-list"></div>
-  </div>
-
+  <div id="streams"><h2>Streams ativos:</h2><div id="stream-list"></div></div>
   <script>
     const container = document.getElementById("video-container");
     const list = document.getElementById("stream-list");
     const shareBtn = document.getElementById("share-btn");
-
-    const baseProtocol = location.protocol === "https:" ? "wss" : "ws";
-    const defaultWsUrl = `${baseProtocol}://${location.hostname}${location.port ? `:${location.port}` : ""}`;
-    const WS_URL = window.SCREEN_SHARED_WS_URL || defaultWsUrl;
+    const protocol = location.protocol === "https:" ? "wss" : "ws";
+    const wsBase = window.SCREEN_SHARED_WS_URL || `${protocol}://${location.host}`;
+    const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
     shareBtn.addEventListener("click", async () => {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { width: 1920, height: 1080, frameRate: 60 },
-          audio: true
-        });
+        shareBtn.disabled = true;
+        const media = await navigator.mediaDevices.getDisplayMedia({ video: { width: 1920, height: 1080, frameRate: 60 }, audio: true });
+        const streamId = `husky_${Math.floor(100000 + Math.random() * 900000)}`;
+        const pc = new RTCPeerConnection(rtcConfig);
+        const pendingCandidates = [];
+        let wsOpen = false;
+        const pendingMessages = [];
+        media.getTracks().forEach(track => track.addEventListener("ended", () => wsOpen && ws.send(JSON.stringify({ publisherStopped: true }))));
+        media.getTracks().forEach(track => pc.addTrack(track, media));
 
-        const randomId = Math.floor(100000 + Math.random() * 900000);
-        const streamId = "husky_" + randomId;
-
-        const pc = new RTCPeerConnection();
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-        const ws = new WebSocket(`${WS_URL}/api/vdo?stream=${encodeURIComponent(streamId)}`);
-
-        ws.onmessage = async (event) => {
-          const data = JSON.parse(event.data);
-          if (data.answer) {
-            await pc.setRemoteDescription(data.answer);
+        const ws = new WebSocket(`${wsBase}/api/vdo?stream=${encodeURIComponent(streamId)}&role=publisher`);
+        const send = (message) => wsOpen ? ws.send(JSON.stringify(message)) : pendingMessages.push(message);
+        ws.onopen = () => { wsOpen = true; while (pendingMessages.length) ws.send(JSON.stringify(pendingMessages.shift())); };
+        ws.onerror = () => alert("Não foi possível conectar ao servidor de sinalização.");
+        ws.onmessage = async ({ data }) => {
+          const message = JSON.parse(data);
+          if (message.answer) {
+            await pc.setRemoteDescription(message.answer);
+            while (pendingCandidates.length) await pc.addIceCandidate(pendingCandidates.shift());
           }
-          if (data.candidate) {
-            await pc.addIceCandidate(data.candidate);
-          }
-        };
-
-        pc.onicecandidate = (event) => {
-          if (event.candidate && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ candidate: event.candidate }));
+          if (message.candidate) {
+            if (pc.remoteDescription) await pc.addIceCandidate(message.candidate);
+            else pendingCandidates.push(message.candidate);
           }
         };
-
+        pc.onicecandidate = ({ candidate }) => { if (candidate) send({ candidate }); };
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-
-        ws.onopen = () => {
-          ws.send(JSON.stringify({ offer }));
-        };
+        send({ offer });
 
         const video = document.createElement("video");
-        video.srcObject = stream;
-        video.autoplay = true;
-        video.muted = true;
-        video.style.width = "100%";
-        video.style.height = "100%";
-        container.innerHTML = "";
-        container.appendChild(video);
-
-        const item = document.createElement("div");
-        item.className = "stream-item";
-        item.innerHTML = `<a href="viewer.html?view=${streamId}" target="_blank">Assistir stream (${streamId})</a>`;
+        video.srcObject = media; video.autoplay = true; video.muted = true; video.playsInline = true;
+        video.style.width = "100%"; video.style.height = "100%";
+        container.replaceChildren(video);
+        const item = document.createElement("div"); item.className = "stream-item";
+        const link = `${location.origin}/viewer.html?view=${streamId}`;
+        item.innerHTML = `<a href="${link}" target="_blank">Assistir stream (${streamId})</a>`;
         list.appendChild(item);
-
-      } catch (err) {
-        alert("Erro ao iniciar compartilhamento: " + err.message);
+      } catch (error) {
+        shareBtn.disabled = false;
+        alert(`Erro ao iniciar compartilhamento: ${error.message}`);
       }
     });
   </script>
-
-  <footer>
-    <p>
-      <a href="privacidade.html" target="_blank">Política de Privacidade</a> | 
-      <a href="termos.html" target="_blank">Termos de Serviço</a>
-    </p>
-  </footer>
 </body>
 </html>

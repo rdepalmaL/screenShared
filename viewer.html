@@ -8,71 +8,53 @@
     h1 { color: #4cafef; padding: 20px; margin: 0; }
     #video-container { margin: 20px; background: #000; border-radius: 8px; overflow: hidden; height: 520px; display: flex; align-items: center; justify-content: center; }
     video { width: 100%; height: 100%; }
+    #status { padding: 0 20px; color: #aaa; }
     footer { margin-top: 40px; padding: 20px; text-align: center; background: #222; }
     footer a { margin: 0 10px; color: #aaa; }
-    footer a:hover { color: #fff; }
   </style>
 </head>
 <body>
   <h1>Assistir Stream</h1>
-  <div id="video-container">
-    <video id="remoteVideo" autoplay playsinline></video>
-  </div>
-
+  <p id="status">Conectando ao compartilhamento...</p>
+  <div id="video-container"><video id="remoteVideo" autoplay playsinline controls></video></div>
   <script>
-    const params = new URLSearchParams(window.location.search);
-    const streamId = params.get("view");
-
-    const baseProtocol = location.protocol === "https:" ? "wss" : "ws";
-    const defaultWsUrl = `${baseProtocol}://${location.hostname}${location.port ? `:${location.port}` : ""}`;
-    const WS_URL = window.SCREEN_SHARED_WS_URL || defaultWsUrl;
+    const streamId = new URLSearchParams(location.search).get("view");
+    const status = document.getElementById("status");
+    const video = document.getElementById("remoteVideo");
+    const protocol = location.protocol === "https:" ? "wss" : "ws";
+    const wsBase = window.SCREEN_SHARED_WS_URL || `${protocol}://${location.host}`;
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    const pendingCandidates = [];
+    let remoteDescriptionSet = false;
 
     if (!streamId) {
-      alert("Stream ID não encontrado na URL.");
+      status.textContent = "Stream ID não encontrado na URL.";
     } else {
-      const remoteVideo = document.getElementById("remoteVideo");
-      const pc = new RTCPeerConnection();
-
-      pc.ontrack = (event) => {
-        remoteVideo.srcObject = event.streams[0];
+      pc.ontrack = ({ streams }) => { if (streams[0]) { video.srcObject = streams[0]; video.play().catch(() => {}); status.textContent = "Compartilhamento conectado."; } };
+      const ws = new WebSocket(`${wsBase}/api/vdo?stream=${encodeURIComponent(streamId)}&role=viewer`);
+      const addCandidate = async (candidate) => {
+        if (remoteDescriptionSet) await pc.addIceCandidate(candidate);
+        else pendingCandidates.push(candidate);
       };
-
-      const ws = new WebSocket(`${WS_URL}/api/vdo?stream=${encodeURIComponent(streamId)}`);
-
-      ws.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data.offer) {
-          await pc.setRemoteDescription(data.offer);
+      ws.onopen = () => { status.textContent = "Aguardando o compartilhamento..."; };
+      ws.onerror = () => { status.textContent = "Erro ao conectar ao servidor."; };
+      ws.onclose = () => { if (!video.srcObject) status.textContent = "Conexão encerrada."; };
+      ws.onmessage = async ({ data }) => {
+        const message = JSON.parse(data);
+        if (message.publisherStopped) { status.textContent = "O compartilhamento foi encerrado."; return; }
+        if (message.candidate) await addCandidate(message.candidate);
+        if (message.offer) {
+          await pc.setRemoteDescription(message.offer);
+          remoteDescriptionSet = true;
+          while (pendingCandidates.length) await pc.addIceCandidate(pendingCandidates.shift());
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ answer }));
-          }
-        }
-
-        if (data.candidate) {
-          try {
-            await pc.addIceCandidate(data.candidate);
-          } catch (error) {
-            console.warn("ICE candidate rejeitada:", error);
-          }
+          ws.send(JSON.stringify({ answer }));
         }
       };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ candidate: event.candidate }));
-        }
-      };
+      pc.onicecandidate = ({ candidate }) => { if (candidate && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ candidate })); };
     }
   </script>
-
-  <footer>
-    <p>
-      <a href="privacidade.html" target="_blank">Política de Privacidade</a> | 
-      <a href="termos.html" target="_blank">Termos de Serviço</a>
-    </p>
-  </footer>
+  <footer><p><a href="privacidade.html" target="_blank">Política de Privacidade</a> | <a href="termos.html" target="_blank">Termos de Serviço</a></p></footer>
 </body>
 </html>

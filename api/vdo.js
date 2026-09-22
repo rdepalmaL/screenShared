@@ -10,76 +10,94 @@ const PORT = Number(process.env.PORT) || 3000;
 const rootDir = path.join(__dirname, "..");
 
 app.use(express.static(rootDir));
-
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, time: new Date().toISOString() });
-});
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
 const wss = new WebSocketServer({ noServer: true });
 const streams = new Map();
 
-function getStream(streamId) {
-  if (!streams.has(streamId)) {
-    streams.set(streamId, { clients: new Set(), offer: null });
+function getStream(id) {
+  if (!streams.has(id)) {
+    streams.set(id, {
+      publisher: null,
+      offer: null,
+      publisherCandidates: [],
+      viewers: new Set()
+    });
   }
-  return streams.get(streamId);
+  return streams.get(id);
+}
+
+function send(ws, message) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(message));
 }
 
 wss.on("connection", (ws, request) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const streamId = url.searchParams.get("stream");
+  const role = url.searchParams.get("role");
 
-  if (!streamId || !/^husky_[0-9]{6}$/.test(streamId)) {
-    ws.close(1008, "Invalid stream ID");
+  if (!streamId || !/^husky_[0-9]{6}$/.test(streamId) || !["publisher", "viewer"].includes(role)) {
+    ws.close(1008, "Invalid stream or role");
     return;
   }
 
   const stream = getStream(streamId);
-  stream.clients.add(ws);
 
-  // A viewer that joins later receives the current offer and can answer it.
-  if (stream.offer && stream.offer.type === "offer") {
-    ws.send(JSON.stringify({ offer: stream.offer }));
+  if (role === "publisher") {
+    if (stream.publisher && stream.publisher !== ws) stream.publisher.close(1000, "Replaced publisher");
+    stream.publisher = ws;
+    if (stream.offer) send(ws, { offer: stream.offer });
+  } else {
+    stream.viewers.add(ws);
+    if (stream.offer) {
+      send(ws, { offer: stream.offer });
+      for (const candidate of stream.publisherCandidates) send(ws, { candidate });
+    }
   }
 
-  ws.on("message", (rawMessage) => {
+  ws.on("message", (raw) => {
     try {
-      const message = JSON.parse(rawMessage.toString());
+      const message = JSON.parse(raw.toString());
 
-      if (message.offer?.type === "offer") {
-        stream.offer = message.offer;
-      }
-
-      for (const client of stream.clients) {
-        if (client !== ws && client.readyState === 1) {
-          client.send(JSON.stringify(message));
+      if (role === "publisher") {
+        if (message.offer) stream.offer = message.offer;
+        if (message.candidate) {
+          stream.publisherCandidates.push(message.candidate);
+          for (const viewer of stream.viewers) send(viewer, { candidate: message.candidate });
+        }
+        if (message.publisherStopped) {
+          stream.offer = null;
+          stream.publisherCandidates = [];
+          for (const viewer of stream.viewers) send(viewer, { publisherStopped: true });
+        }
+      } else {
+        if (message.answer || message.candidate) {
+          send(stream.publisher, message);
         }
       }
     } catch (error) {
-      console.error("Mensagem WebSocket inválida:", error);
+      console.error("Invalid WebSocket message:", error);
     }
   });
 
   ws.on("close", () => {
-    stream.clients.delete(ws);
-    if (stream.clients.size === 0) {
-      streams.delete(streamId);
+    if (role === "publisher" && stream.publisher === ws) {
+      stream.publisher = null;
+      stream.offer = null;
+      stream.publisherCandidates = [];
+      for (const viewer of stream.viewers) send(viewer, { publisherStopped: true });
     }
+    if (role === "viewer") stream.viewers.delete(ws);
+    if (!stream.publisher && stream.viewers.size === 0) streams.delete(streamId);
   });
 });
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
 
 server.on("upgrade", (request, socket, head) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
-  if (url.pathname !== "/api/vdo") {
-    socket.destroy();
-    return;
-  }
-
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit("connection", ws, request);
-  });
+  if (url.pathname !== "/api/vdo") return socket.destroy();
+  wss.handleUpgrade(request, socket, head, (ws) => wss.emit("connection", ws, request));
 });
