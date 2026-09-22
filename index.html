@@ -46,69 +46,37 @@
     const sdk = new ActivitySDK();
 
     sdk.ready().then(() => {
-      // Gera ID aleatório para não travar na autenticação
       const randomId = Math.floor(100000 + Math.random() * 900000);
       const streamId = "husky_" + randomId;
 
-      // PARÂMETROS SOURCE (TRANSMISSOR)[cite: 10, 12]:
-      // &screen -> foca na telaAqui está a documentação completa extraída das imagens sobre os **Parâmetros de Compartilhamento de Tela (Screen-share Parameters)**:
+      // Parâmetros para forçar exibição do botão de compartilhamento no VDO Ninja
+      const pushLink = `/vdo/?push=${streamId}&screenshare&screensharebutton&quality=9&fps=60&width=1920&height=1080`;
+      const viewLink = `/vdo/?view=${streamId}&videobitrate=10000&scale=100`;
 
-## Visão Geral
-Os parâmetros de compartilhamento de tela são separados pelo local onde são aplicados[cite: 3]:
+      const container = document.getElementById("video-container");
+      
+      const iframe = document.createElement("iframe");
+      iframe.src = pushLink;
+      iframe.width = "100%";
+      iframe.height = "100%";
+      iframe.allow = "camera *; microphone *; display-capture *; autoplay *";
+      iframe.style.border = "none";
+      
+      container.appendChild(iframe);
 
-* **Opções de origem (Source side):** pertencem a links de publicadores, como `&push`, links de convite para convidados ou participantes da sala que compartilharão a tela[cite: 3].
-* **Opções do espectador (Viewer side):** pertencem a links de recepção, como `&view` ou `&scene`, e controlam como os compartilhamentos de tela recebidos são solicitados ou exibidos[cite: 3].
+      const list = document.getElementById("stream-list");
+      const item = document.createElement("div");
+      item.className = "stream-item";
+      item.innerHTML = `<a href="${viewLink}" target="_blank">Assistir stream (${streamId})</a>`;
+      list.appendChild(item);
+    });
+  </script>
 
-Use `&screensharehide` quando o publicador não deve ver sua própria prévia local de compartilhamento de tela[cite: 3]. Use `&noscreenshare` quando um link de espectador ou de cena não deve carregar compartilhamentos de tela recebidos[cite: 3].
-
----
-
-## Opções Gerais (General options)
-
-| Parâmetro | Explicação |
-| :--- | :--- |
-| `&screensharestereo`[cite: 3] | Define o modo de áudio para compartilhamentos de tela como estéreo e altera as configurações de áudio padrão para melhorar a qualidade do som[cite: 3]. |
-
----
-
-## Opções do Lado da Origem (Source side options)
-
-| Parâmetro | Explicação |
-| :--- | :--- |
-| `&noscreenshare`[cite: 1] | Desativa o compartilhamento de câmera como uma opção[cite: 1]. |
-| `&screenshare`[cite: 1] | Mostra o botão "Compartilhar sua tela" antes de pedir ao usuário para selecionar as opções de compartilhamento[cite: 1]. |
-| `&screenshareaec`[cite: 1] | Ativa ou desativa o cancelamento automático de eco para compartilhamentos de tela[cite: 1]. |
-| `&screenshareautogain`[cite: 1] | Ativa ou desativa a normalização automática de áudio para compartilhamentos de tela[cite: 1]. |
-| `&screensharecursor`[cite: 1] | Tenta exibir o cursor do mouse nos compartilhamentos de tela[cite: 1]. |
-| `&screensharedenoise`[cite: 1] | Ativa ou desativa a redução de ruído de áudio para compartilhamentos de tela[cite: 1]. |
-| `&screensharefps`[cite: 1] | Define uma taxa de quadros por segundo (FPS) alvo para o compartilhamento de tela[cite: 1]. |
-| `&screensharehide`[cite: 1] | Oculta a janela de prévia do compartilhamento de tela local do publicador[cite: 1]. |
-| `&screenshareid`[cite: 1] | Define antecipadamente o ID de transmissão para um fluxo secundário de compartilhamento de tela[cite: 1]. |
-| `&screensharelabel`[cite: 1] | Atribui ao fluxo de compartilhamento de tela o mesmo rótulo do convidado[cite: 1]. |
-| `&screensharequality`[cite: 1] | Define uma qualidade personalizada para o compartilhamento de tela[cite: 1]. |
-| `&screensharecontenthint`[cite: 1] | `=motion` prioriza a taxa de quadros (FPS); `=detail` prioriza a resolução[cite: 1]. |
-| `&screenshareaspectratio`[cite: 1] | Altera a proporção da tela (aspect ratio) do compartilhamento no lado do publicador[cite: 1]. |
-| `&screensharetype`[cite: 1] | Define como a webcam e o compartilhamento de tela de um convidado interagem em uma sala[cite: 1]. |
-| `&smallshare`[cite: 1] | Faz com que o compartilhamento de tela se comporte como um compartilhamento de webcam[cite: 1]. |
-| `&screenshareaudioonly`[cite: 1] | Desativa a opção de selecionar áudio ao compartilhar a tela[cite: 1]. |
-| `&screensharebutton`[cite: 1] | Força a exibição do botão de compartilhamento de tela para os convidados[cite: 1]. |
-| `&suppresslocalaudio`[cite: 1] | Desativa a reprodução de áudio local de uma guia do Chrome enquanto ela é compartilhada[cite: 1]. |
-| `&prefercurrenttab`[cite: 1] | Torna a guia atual a fonte padrão do compartilhamento de tela[cite: 1]. |
-| `&selfbrowser-surface`[cite: 1] | Exclui a guia atual como opção de fonte para o compartilhamento de tela[cite: 1]. |
-| `&systemaudio`[cite: 1] | Exclui o áudio do sistema como fonte de áudio ao compartilhar a exibição[cite: 1]. |
-| `&display-surface`[cite: 1] | Pré-seleciona o compartilhamento de tela inteira em vez do compartilhamento de guia[cite: 1]. |
-| `&screenwhep`[cite: 2] | Escolhe se os compartilhamentos de tela preferem retransmissões WHEP ou mantêm P2P[cite: 2]. |
-| `&screensharestyle`[cite: 2] | Seleciona um estilo predefinido de layout para o compartilhamento de tela[cite: 2]. |
-
----
-
-## Opções do Lado do Espectador (Viewer side options)
-
-| Parâmetro | Explicação |
-| :--- | :--- |
-| `&screensharebitrate`[cite: 2] | Define manualmente a taxa de bits (bitrate) de vídeo para compartilhamentos de tela recebidos[cite: 2]. |
-| `&sharperscreen`[cite: 2] | Aplica `&scale=100`, mas apenas para compartilhamentos de tela[cite: 2]. |
-| `&sspaused`[cite: 2] | Inicia os compartilhamentos de tela recebidos em estado pausado[cite: 2]. |
-| `&allowscreenvideo`[cite: 2] | Habilita ou bloqueia forçadamente faixas de vídeo de compartilhamento de tela em um link de espectador[cite: 2]. |
-| `&allowscreenaudio`[cite: 2] | Habilita ou bloqueia forçadamente faixas de áudio de compartilhamento de tela em um link de espectador[cite: 2]. |
-| `&noscreenshare`[cite: 2] | Impede que links de espectador e de cena carreguem compartilhamentos de tela recebidos[cite: 2]. |
+  <footer>
+    <p>
+      <a href="privacidade.html" target="_blank">Política de Privacidade</a> | 
+      <a href="termos.html" target="_blank">Termos de Serviço</a>
+    </p>
+  </footer>
+</body>
+</html>
