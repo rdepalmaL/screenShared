@@ -4,22 +4,10 @@
   <meta charset="UTF-8">
   <title>HuskySharedScreen</title>
   <style>
-    body { 
-      font-family: Arial, sans-serif; 
-      background: #111; 
-      color: #eee; 
-      margin: 0; 
-      padding: 0; 
-    }
+    body { font-family: Arial, sans-serif; background: #111; color: #eee; margin: 0; padding: 0; }
     h1 { color: #4cafef; padding: 20px 20px 0 20px; margin: 0; }
     p { padding: 0 20px; }
-    #video-container {
-      margin: 20px;
-      background: #000;
-      border-radius: 8px;
-      overflow: hidden;
-      height: 520px;
-    }
+    #video-container { margin: 20px; background: #000; border-radius: 8px; overflow: hidden; height: 520px; }
     #streams { margin-top: 20px; padding: 0 20px; }
     .stream-item { margin: 10px 0; }
     a { color: #4cafef; text-decoration: none; }
@@ -27,16 +15,7 @@
     footer { margin-top: 40px; padding: 20px; text-align: center; background: #222; }
     footer a { margin: 0 10px; color: #aaa; }
     footer a:hover { color: #fff; }
-    #share-btn {
-      display: inline-block;
-      margin: 20px;
-      padding: 12px 20px;
-      background: #4cafef;
-      color: #111;
-      font-weight: bold;
-      border-radius: 6px;
-      cursor: pointer;
-    }
+    #share-btn { display: inline-block; margin: 20px; padding: 12px 20px; background: #4cafef; color: #111; font-weight: bold; border-radius: 6px; cursor: pointer; }
     #share-btn:hover { background: #6ccaff; }
   </style>
 </head>
@@ -60,36 +39,56 @@
 
     shareBtn.addEventListener("click", async () => {
       try {
-        // Abre seletor de tela do navegador
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: { width: 1920, height: 1080, frameRate: 60 },
           audio: true
         });
 
-        // Gera ID único só depois da escolha
         const randomId = Math.floor(100000 + Math.random() * 900000);
         const streamId = "husky_" + randomId;
 
-        // Links de push/view
-        const pushLink = `./vdo/?push=${streamId}&screenshare&quality=9&fps=60&width=1920&height=1080&autostart`;
-        const viewLink = `./vdo/?view=${streamId}&videobitrate=10000&scale=100`;
+        // Cria PeerConnection
+        const pc = new RTCPeerConnection();
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-        // Cria iframe para transmitir
-        const iframe = document.createElement("iframe");
-        iframe.src = pushLink;
-        iframe.width = "100%";
-        iframe.height = "100%";
-        iframe.allow = "camera *; microphone *; display-capture *; autoplay *; clipboard-read; clipboard-write";
-        iframe.setAttribute("sandbox", "allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-downloads");
-        iframe.style.border = "none";
+        // Conecta ao servidor de sinalização
+        const ws = new WebSocket(`ws://${location.host}/?stream=${streamId}`);
+        ws.onmessage = async (event) => {
+          const data = JSON.parse(event.data);
+          if (data.answer) {
+            await pc.setRemoteDescription(data.answer);
+          }
+          if (data.candidate) {
+            await pc.addIceCandidate(data.candidate);
+          }
+        };
 
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            ws.send(JSON.stringify({ candidate: event.candidate }));
+          }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ offer }));
+        };
+
+        // Mostra preview local
+        const video = document.createElement("video");
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.muted = true;
+        video.style.width = "100%";
+        video.style.height = "100%";
         container.innerHTML = "";
-        container.appendChild(iframe);
+        container.appendChild(video);
 
         // Adiciona link de assistir
         const item = document.createElement("div");
         item.className = "stream-item";
-        item.innerHTML = `<a href="${viewLink}" target="_blank">Assistir stream (${streamId})</a>`;
+        item.innerHTML = `<a href="./vdo/?view=${streamId}" target="_blank">Assistir stream (${streamId})</a>`;
         list.appendChild(item);
 
       } catch (err) {
