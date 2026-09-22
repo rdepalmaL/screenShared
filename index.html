@@ -4,12 +4,15 @@
   <meta charset="UTF-8">
   <title>HuskySharedScreen</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #111; color: #eee; }
+    body { font-family: Arial, sans-serif; background: #111; color: #eee; margin: 0; padding: 0; }
     h1 { color: #4cafef; }
     #streams { margin-top: 20px; }
     .stream-item { margin: 10px 0; }
     a { color: #4cafef; text-decoration: none; }
     a:hover { text-decoration: underline; }
+    footer { margin-top: 40px; padding: 20px; text-align: center; background: #222; }
+    footer a { margin: 0 10px; color: #aaa; }
+    footer a:hover { color: #fff; }
   </style>
 </head>
 <body>
@@ -46,5 +49,12 @@
       console.log("Stream ativo:", viewLink);
     });
   </script>
+
+  <footer>
+    <p>
+      <a href="privacidade.html" target="_blank">Política de Privacidade</a> | 
+      <a href="termos.html" target="_blank">Termos de Serviço</a>
+    </p>
+  </footer>
 </body>
 </html>
