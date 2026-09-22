@@ -41,25 +41,30 @@
   </div>
 
   <script type="module">
-    import { ActivitySDK } from "https://cdn.skypack.dev/@discord/activities-sdk";
+    import { ActivitySDK } from "https://esm.sh/@discord/activities-sdk";
 
-    const sdk = new ActivitySDK();
+    async function init() {
+      try {
+        const sdk = new ActivitySDK();
+        await sdk.ready();
+      } catch (e) {
+        console.warn("Discord SDK não pôde ser inicializado, rodando em modo standalone:", e);
+      }
 
-    sdk.ready().then(() => {
       const randomId = Math.floor(100000 + Math.random() * 900000);
       const streamId = "husky_" + randomId;
 
-      // Utiliza o proxy interno do Discord mapeado no URL Mapping
-      const pushLink = `./vdo/?push=${streamId}&screenshare&screensharebutton&quality=9&fps=60&width=1920&height=1080`;
+      const pushLink = `./vdo/?push=${streamId}&screenshare&screensharebutton&quality=9&fps=60&width=1920&height=1080&autostart`;
       const viewLink = `./vdo/?view=${streamId}&videobitrate=10000&scale=100`;
 
       const container = document.getElementById("video-container");
-
       const iframe = document.createElement("iframe");
+      
       iframe.src = pushLink;
       iframe.width = "100%";
       iframe.height = "100%";
-      iframe.allow = "camera *; microphone *; display-capture *; autoplay *";
+      iframe.allow = "camera *; microphone *; display-capture *; autoplay *; clipboard-read; clipboard-write";
+      iframe.setAttribute("sandbox", "allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-downloads");
       iframe.style.border = "none";
 
       container.appendChild(iframe);
@@ -69,7 +74,9 @@
       item.className = "stream-item";
       item.innerHTML = `<a href="${viewLink}" target="_blank">Assistir stream (${streamId})</a>`;
       list.appendChild(item);
-    });
+    }
+
+    init();
   </script>
 
   <footer>
