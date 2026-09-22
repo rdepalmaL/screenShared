@@ -9,6 +9,11 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const rootDir = path.join(__dirname, "..");
 
+// The Discord connection entry point must open the Activity itself.
+app.get("/auth/discord", (_req, res) => {
+  res.redirect(302, "/");
+});
+
 app.use(express.static(rootDir));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
@@ -70,10 +75,8 @@ wss.on("connection", (ws, request) => {
           stream.publisherCandidates = [];
           for (const viewer of stream.viewers) send(viewer, { publisherStopped: true });
         }
-      } else {
-        if (message.answer || message.candidate) {
-          send(stream.publisher, message);
-        }
+      } else if (message.answer || message.candidate) {
+        send(stream.publisher, message);
       }
     } catch (error) {
       console.error("Invalid WebSocket message:", error);
