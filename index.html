@@ -18,7 +18,7 @@
       background: #000;
       border-radius: 8px;
       overflow: hidden;
-      height: 550px;
+      height: 520px;
     }
     #streams { margin-top: 20px; padding: 0 20px; }
     .stream-item { margin: 10px 0; }
@@ -46,58 +46,69 @@
     const sdk = new ActivitySDK();
 
     sdk.ready().then(() => {
-      // Gera um ID único para a sessão sem depender do comando authenticate
+      // Gera ID aleatório para não travar na autenticação
       const randomId = Math.floor(100000 + Math.random() * 900000);
       const streamId = "husky_" + randomId;
 
-      const pushLink = `/vdo/?push=${streamId}&screen&quality=9&fps=60&width=1920&height=1080`;
-      const viewLink = `/vdo/?view=${streamId}&videobitrate=10000&scale=100`;
+      // PARÂMETROS SOURCE (TRANSMISSOR)[cite: 10, 12]:
+      // &screen -> foca na telaAqui está a documentação completa extraída das imagens sobre os **Parâmetros de Compartilhamento de Tela (Screen-share Parameters)**:
 
-      const container = document.getElementById("video-container");
-      
-      // Cria e insere o iframe do VDO Ninja
-      const iframe = document.createElement("iframe");
-      iframe.src = pushLink;
-      iframe.width = "100%";
-      iframe.height = "100%";
-      iframe.allow = "camera; microphone; display-capture; autoplay";
-      iframe.style.border = "none";
-      
-      container.appendChild(iframe);
+## Visão Geral
+Os parâmetros de compartilhamento de tela são separados pelo local onde são aplicados[cite: 3]:
 
-      // Adiciona o linkO Discord está preso no ecrã de carregamento ("Carregando transmissão...") ao tentar visualizar a partilha de ecrã[cite: 1]. Este problema geralmente é causado por definições de aceleração por hardware, cache corrompida ou bloqueios no protocolo de rede/AV1.
+* **Opções de origem (Source side):** pertencem a links de publicadores, como `&push`, links de convite para convidados ou participantes da sala que compartilharão a tela[cite: 3].
+* **Opções do espectador (Viewer side):** pertencem a links de recepção, como `&view` ou `&scene`, e controlam como os compartilhamentos de tela recebidos são solicitados ou exibidos[cite: 3].
 
-Siga estes passos para resolver o problema:
+Use `&screensharehide` quando o publicador não deve ver sua própria prévia local de compartilhamento de tela[cite: 3]. Use `&noscreenshare` quando um link de espectador ou de cena não deve carregar compartilhamentos de tela recebidos[cite: 3].
 
-<Steps>
-  <Step title="Desativar Aceleração por Hardware" subtitle="2 min">
-    Vá às **Definições do Utilizador** (ícone de engrenagem no canto inferior esquerdo) > **Avançado** > Desative a opção **Aceleração por Hardware**. Reinicie o Discord.
-    
-    *Verificação:* Abra novamente a transmissão para testar se a imagem carrega imediatamente.
-  </Step>
+---
 
-  <Step title="Desativar Códecs de Vídeo Avançados" subtitle="1 min">
-    Vá às **Definições do Utilizador** > **Voz e Vídeo**. Na secção "Códecs de Vídeo", desative o **Codec de Vídeo AV1** e a **Aceleração por Hardware H.264**.
-    
-    *Verificação:* Entre novamente no canal de voz e clique para assistir à transmissão.
-  </Step>
+## Opções Gerais (General options)
 
-  <Step title="Limpar a Cache do Discord" subtitle="3 min">
-    Feche completamente o Discord (botão direito no ícone da barra de tarefas > Sair do Discord). Pressione `Win + R`, digite `%appdata%\discord` e prima Enter. Apague as pastas `Cache`, `Code Cache` e `GPUCache`.
-    
-    *Verificação:* Abra o Discord novamente e tente visualizar a partilha de ecrã.
-  </Step>
+| Parâmetro | Explicação |
+| :--- | :--- |
+| `&screensharestereo`[cite: 3] | Define o modo de áudio para compartilhamentos de tela como estéreo e altera as configurações de áudio padrão para melhorar a qualidade do som[cite: 3]. |
 
-  <Step title="Mudar de Servidor de Voz" subtitle="1 min">
-    Se for administrador do servidor do Discord, vá às definições do canal de voz e altere a **Região do Servidor** (Override de Região) para outra localização e volte a testar.
-    
-    *Verificação:* O stream recarregará automaticamente para todos no canal.
-  </Step>
-</Steps>
+---
 
-Se o problema persistir após estes passos, qual é a versão do seu sistema operacional (ex: Windows 10, Windows 11) e está a utilizar a aplicação do Discord ou a versão web no browser?
+## Opções do Lado da Origem (Source side options)
 
-<Elicitations message="Como deseja prosseguir?">
-  <Elicitation label="Testar na versão Web" query="Como posso testar a transmissão no Discord Web para isolar o problema?" />
-  <Elicitation label="Reiniciar definições de voz" query="Como faço para redefinir todas as configurações de Voz e Vídeo do Discord?" />
-</Elicitations>
+| Parâmetro | Explicação |
+| :--- | :--- |
+| `&noscreenshare`[cite: 1] | Desativa o compartilhamento de câmera como uma opção[cite: 1]. |
+| `&screenshare`[cite: 1] | Mostra o botão "Compartilhar sua tela" antes de pedir ao usuário para selecionar as opções de compartilhamento[cite: 1]. |
+| `&screenshareaec`[cite: 1] | Ativa ou desativa o cancelamento automático de eco para compartilhamentos de tela[cite: 1]. |
+| `&screenshareautogain`[cite: 1] | Ativa ou desativa a normalização automática de áudio para compartilhamentos de tela[cite: 1]. |
+| `&screensharecursor`[cite: 1] | Tenta exibir o cursor do mouse nos compartilhamentos de tela[cite: 1]. |
+| `&screensharedenoise`[cite: 1] | Ativa ou desativa a redução de ruído de áudio para compartilhamentos de tela[cite: 1]. |
+| `&screensharefps`[cite: 1] | Define uma taxa de quadros por segundo (FPS) alvo para o compartilhamento de tela[cite: 1]. |
+| `&screensharehide`[cite: 1] | Oculta a janela de prévia do compartilhamento de tela local do publicador[cite: 1]. |
+| `&screenshareid`[cite: 1] | Define antecipadamente o ID de transmissão para um fluxo secundário de compartilhamento de tela[cite: 1]. |
+| `&screensharelabel`[cite: 1] | Atribui ao fluxo de compartilhamento de tela o mesmo rótulo do convidado[cite: 1]. |
+| `&screensharequality`[cite: 1] | Define uma qualidade personalizada para o compartilhamento de tela[cite: 1]. |
+| `&screensharecontenthint`[cite: 1] | `=motion` prioriza a taxa de quadros (FPS); `=detail` prioriza a resolução[cite: 1]. |
+| `&screenshareaspectratio`[cite: 1] | Altera a proporção da tela (aspect ratio) do compartilhamento no lado do publicador[cite: 1]. |
+| `&screensharetype`[cite: 1] | Define como a webcam e o compartilhamento de tela de um convidado interagem em uma sala[cite: 1]. |
+| `&smallshare`[cite: 1] | Faz com que o compartilhamento de tela se comporte como um compartilhamento de webcam[cite: 1]. |
+| `&screenshareaudioonly`[cite: 1] | Desativa a opção de selecionar áudio ao compartilhar a tela[cite: 1]. |
+| `&screensharebutton`[cite: 1] | Força a exibição do botão de compartilhamento de tela para os convidados[cite: 1]. |
+| `&suppresslocalaudio`[cite: 1] | Desativa a reprodução de áudio local de uma guia do Chrome enquanto ela é compartilhada[cite: 1]. |
+| `&prefercurrenttab`[cite: 1] | Torna a guia atual a fonte padrão do compartilhamento de tela[cite: 1]. |
+| `&selfbrowser-surface`[cite: 1] | Exclui a guia atual como opção de fonte para o compartilhamento de tela[cite: 1]. |
+| `&systemaudio`[cite: 1] | Exclui o áudio do sistema como fonte de áudio ao compartilhar a exibição[cite: 1]. |
+| `&display-surface`[cite: 1] | Pré-seleciona o compartilhamento de tela inteira em vez do compartilhamento de guia[cite: 1]. |
+| `&screenwhep`[cite: 2] | Escolhe se os compartilhamentos de tela preferem retransmissões WHEP ou mantêm P2P[cite: 2]. |
+| `&screensharestyle`[cite: 2] | Seleciona um estilo predefinido de layout para o compartilhamento de tela[cite: 2]. |
+
+---
+
+## Opções do Lado do Espectador (Viewer side options)
+
+| Parâmetro | Explicação |
+| :--- | :--- |
+| `&screensharebitrate`[cite: 2] | Define manualmente a taxa de bits (bitrate) de vídeo para compartilhamentos de tela recebidos[cite: 2]. |
+| `&sharperscreen`[cite: 2] | Aplica `&scale=100`, mas apenas para compartilhamentos de tela[cite: 2]. |
+| `&sspaused`[cite: 2] | Inicia os compartilhamentos de tela recebidos em estado pausado[cite: 2]. |
+| `&allowscreenvideo`[cite: 2] | Habilita ou bloqueia forçadamente faixas de vídeo de compartilhamento de tela em um link de espectador[cite: 2]. |
+| `&allowscreenaudio`[cite: 2] | Habilita ou bloqueia forçadamente faixas de áudio de compartilhamento de tela em um link de espectador[cite: 2]. |
+| `&noscreenshare`[cite: 2] | Impede que links de espectador e de cena carreguem compartilhamentos de tela recebidos[cite: 2]. |
