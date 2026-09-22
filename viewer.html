@@ -23,6 +23,10 @@
     const params = new URLSearchParams(window.location.search);
     const streamId = params.get("view");
 
+    const baseProtocol = location.protocol === "https:" ? "wss" : "ws";
+    const defaultWsUrl = `${baseProtocol}://${location.hostname}${location.port ? `:${location.port}` : ""}`;
+    const WS_URL = window.SCREEN_SHARED_WS_URL || defaultWsUrl;
+
     if (!streamId) {
       alert("Stream ID não encontrado na URL.");
     } else {
@@ -33,22 +37,31 @@
         remoteVideo.srcObject = event.streams[0];
       };
 
-      const ws = new WebSocket(`wss://${location.host}/api/vdo?stream=${streamId}`);
+      const ws = new WebSocket(`${WS_URL}/api/vdo?stream=${encodeURIComponent(streamId)}`);
+
       ws.onmessage = async (event) => {
         const data = JSON.parse(event.data);
+
         if (data.offer) {
           await pc.setRemoteDescription(data.offer);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          ws.send(JSON.stringify({ answer }));
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ answer }));
+          }
         }
+
         if (data.candidate) {
-          await pc.addIceCandidate(data.candidate);
+          try {
+            await pc.addIceCandidate(data.candidate);
+          } catch (error) {
+            console.warn("ICE candidate rejeitada:", error);
+          }
         }
       };
 
       pc.onicecandidate = (event) => {
-        if (event.candidate) {
+        if (event.candidate && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ candidate: event.candidate }));
         }
       };
