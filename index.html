@@ -37,6 +37,10 @@
     const list = document.getElementById("stream-list");
     const shareBtn = document.getElementById("share-btn");
 
+    const baseProtocol = location.protocol === "https:" ? "wss" : "ws";
+    const defaultWsUrl = `${baseProtocol}://${location.hostname}${location.port ? `:${location.port}` : ""}`;
+    const WS_URL = window.SCREEN_SHARED_WS_URL || defaultWsUrl;
+
     shareBtn.addEventListener("click", async () => {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -50,7 +54,8 @@
         const pc = new RTCPeerConnection();
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-        const ws = new WebSocket(`wss://${location.host}/api/vdo?stream=${streamId}`);
+        const ws = new WebSocket(`${WS_URL}/api/vdo?stream=${encodeURIComponent(streamId)}`);
+
         ws.onmessage = async (event) => {
           const data = JSON.parse(event.data);
           if (data.answer) {
@@ -62,13 +67,14 @@
         };
 
         pc.onicecandidate = (event) => {
-          if (event.candidate) {
+          if (event.candidate && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ candidate: event.candidate }));
           }
         };
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+
         ws.onopen = () => {
           ws.send(JSON.stringify({ offer }));
         };
