@@ -40,31 +40,36 @@
     <div id="stream-list"></div>
   </div>
 
-  <script>
-    // Gerador de ID sem depender de bibliotecas externas
-    const randomId = Math.floor(100000 + Math.random() * 900000);
-    const streamId = "husky_" + randomId;
+  <script type="module">
+    import { ActivitySDK } from "https://cdn.skypack.dev/@discord/activities-sdk";
 
-    // Chamada direta para o servidor oficial do VDO Ninja
-    const pushLink = `https://vdo.ninja/?push=${streamId}&screenshare&screensharebutton&quality=9&fps=60&width=1920&height=1080`;
-    const viewLink = `https://vdo.ninja/?view=${streamId}&videobitrate=10000&scale=100`;
+    const sdk = new ActivitySDK();
 
-    const container = document.getElementById("video-container");
+    sdk.ready().then(() => {
+      const randomId = Math.floor(100000 + Math.random() * 900000);
+      const streamId = "husky_" + randomId;
 
-    const iframe = document.createElement("iframe");
-    iframe.src = pushLink;
-    iframe.width = "100%";
-    iframe.height = "100%";
-    iframe.allow = "camera; microphone; display-capture; autoplay";
-    iframe.style.border = "none";
+      // Utiliza o proxy interno do Discord mapeado no URL Mapping
+      const pushLink = `./vdo/?push=${streamId}&screenshare&screensharebutton&quality=9&fps=60&width=1920&height=1080`;
+      const viewLink = `./vdo/?view=${streamId}&videobitrate=10000&scale=100`;
 
-    container.appendChild(iframe);
+      const container = document.getElementById("video-container");
 
-    const list = document.getElementById("stream-list");
-    const item = document.createElement("div");
-    item.className = "stream-item";
-    item.innerHTML = `<a href="${viewLink}" target="_blank">Assistir stream (${streamId})</a>`;
-    list.appendChild(item);
+      const iframe = document.createElement("iframe");
+      iframe.src = pushLink;
+      iframe.width = "100%";
+      iframe.height = "100%";
+      iframe.allow = "camera *; microphone *; display-capture *; autoplay *";
+      iframe.style.border = "none";
+
+      container.appendChild(iframe);
+
+      const list = document.getElementById("stream-list");
+      const item = document.createElement("div");
+      item.className = "stream-item";
+      item.innerHTML = `<a href="${viewLink}" target="_blank">Assistir stream (${streamId})</a>`;
+      list.appendChild(item);
+    });
   </script>
 
   <footer>
