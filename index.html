@@ -47,11 +47,9 @@
         const randomId = Math.floor(100000 + Math.random() * 900000);
         const streamId = "husky_" + randomId;
 
-        // Cria PeerConnection
         const pc = new RTCPeerConnection();
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-        // Conecta ao servidor de sinalização
         const ws = new WebSocket(`wss://${location.host}/api/vdo?stream=${streamId}`);
         ws.onmessage = async (event) => {
           const data = JSON.parse(event.data);
@@ -75,7 +73,6 @@
           ws.send(JSON.stringify({ offer }));
         };
 
-        // Mostra preview local
         const video = document.createElement("video");
         video.srcObject = stream;
         video.autoplay = true;
@@ -85,10 +82,10 @@
         container.innerHTML = "";
         container.appendChild(video);
 
-        // Adiciona link de assistir
         const item = document.createElement("div");
         item.className = "stream-item";
-        item.innerHTML = `<a href="./vdo/?view=${streamId}" target="_blank">Assistir stream (${streamId})</a>`;
+        // Agora o link aponta para viewer.html
+        item.innerHTML = `<a href="viewer.html?view=${streamId}" target="_blank">Assistir stream (${streamId})</a>`;
         list.appendChild(item);
 
       } catch (err) {

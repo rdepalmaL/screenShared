@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Viewer - HuskySharedScreen</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #111; color: #eee; margin: 0; padding: 0; }
+    h1 { color: #4cafef; padding: 20px; margin: 0; }
+    #video-container { margin: 20px; background: #000; border-radius: 8px; overflow: hidden; height: 520px; display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; height: 100%; }
+    footer { margin-top: 40px; padding: 20px; text-align: center; background: #222; }
+    footer a { margin: 0 10px; color: #aaa; }
+    footer a:hover { color: #fff; }
+  </style>
+</head>
+<body>
+  <h1>Assistir Stream</h1>
+  <div id="video-container">
+    <video id="remoteVideo" autoplay playsinline></video>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const streamId = params.get("view");
+
+    if (!streamId) {
+      alert("Stream ID não encontrado na URL.");
+    } else {
+      const remoteVideo = document.getElementById("remoteVideo");
+      const pc = new RTCPeerConnection();
+
+      pc.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      const ws = new WebSocket(`wss://${location.host}/api/vdo?stream=${streamId}`);
+      ws.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        if (data.offer) {
+          await pc.setRemoteDescription(data.offer);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          ws.send(JSON.stringify({ answer }));
+        }
+        if (data.candidate) {
+          await pc.addIceCandidate(data.candidate);
+        }
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          ws.send(JSON.stringify({ candidate: event.candidate }));
+        }
+      };
+    }
+  </script>
+
+  <footer>
+    <p>
+      <a href="privacidade.html" target="_blank">Política de Privacidade</a> | 
+      <a href="termos.html" target="_blank">Termos de Serviço</a>
+    </p>
+  </footer>
+</body>
+</html>
