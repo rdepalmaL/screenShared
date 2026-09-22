@@ -18,6 +18,10 @@
       background: #000;
       border-radius: 8px;
       overflow: hidden;
+      min-height: 400px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     #streams { margin-top: 20px; padding: 0 20px; }
     .stream-item { margin: 10px 0; }
@@ -32,8 +36,7 @@
   <h1>HuskySharedScreen</h1>
   <p>Compartilhamento de tela automático em 1080p.</p>
 
-  <!-- Container onde o iframe da transmissão será renderizado -->
-  <div id="video-container"></div>
+  <div id="video-container">Carregando transmissão...</div>
 
   <div id="streams">
     <h2>Streams ativos:</h2>
@@ -45,41 +48,45 @@
 
     const sdk = new ActivitySDK();
 
-    sdk.ready().then(() => {
-      const userId = sdk.userId || "user";
-      const streamId = "husky_" + userId;
+    async function init() {
+      try {
+        await sdk.ready();
+        
+        // Autentica na SDK do Discord para obter os dados do usuário com segurança
+        const auth = await sdk.commands.authenticate();
+        const userId = auth?.user?.id || Math.floor(Math.random() * 100000);
+        const streamId = "husky_" + userId;
 
-      // Utiliza o caminho relativo (/vdo/) que você configurou no Discord Developer Portal
-      const pushLink = `/vdo/?push=${streamId}&screen&quality=9&fps=60&width=1920&height=1080`;
-      const viewLink = `/vdo/?view=${streamId}&videobitrate=10000&scale=100`;
+        const pushLink = `/vdo/?push=${streamId}&screen&quality=9&fps=60&width=1920&height=1080`;
+        const viewLink = `/vdo/?view=${streamId}&videobitrate=10000&scale=100`;
 
-      // Renderiza o iframe diretamente no corpo da Atividade
-      const container = document.getElementById("video-container");
-      const iframe = document.createElement("iframe");
-      iframe.src = pushLink;
-      iframe.width = "100%";
-      iframe.height = "550px";
-      iframe.allow = "camera; microphone; display-capture; autoplay";
-      iframe.style.border = "none";
-      
-      container.appendChild(iframe);
+        const container = document.getElementById("video-container");
+        container.innerHTML = ""; // Limpa a mensagem de carregamento
 
-      // Adiciona o link de visualização à lista abaixo do player
-      const list = document.getElementById("stream-list");
-      const item = document.createElement("div");
-      item.className = "stream-item";
-      item.innerHTML = `<a href="${viewLink}" target="_blank">Assistir stream de ${userId}</a>`;
-      list.appendChild(item);
+        const iframe = document.createElement("iframe");
+        iframe.src = pushLink;
+A imagem mostra a aplicação **HuskySharedScreen** no Discord sem exibir nenhuma transmissão ativa na secção "Streams ativos"[cite: 1].
 
-      console.log("Stream ativo:", viewLink);
-    });
-  </script>
+Para resolver este problema onde a transmissão/atividade do Discord não carrega ou fica em ecrã preto, siga estes passos simples:
 
-  <footer>
-    <p>
-      <a href="privacidade.html" target="_blank">Política de Privacidade</a> | 
-      <a href="termos.html" target="_blank">Termos de Serviço</a>
-    </p>
-  </footer>
-</body>
-</html>
+<Steps>
+  <Step title="Reiniciar a Atividade no Discord" subtitle="1 min">
+    Encerre a atividade **HuskySharedScreen** clicando no botão de desligar a transmissão/atividade (no canto inferior esquerdo, perto do nome do canal de voz) e inicie-a novamente.
+  </Step>
+  <Step title="Verificar Permissões do Bot/App" subtitle="1 min">
+    Garanta que a aplicação/bot tem as permissões necessárias no canal de voz (como permissão para transmitir vídeo/ecrã e utilizar atividades).
+  </Step>
+  <Step title="Desativar a Aceleração de Hardware" subtitle="2 min">
+    Vá às **Definições do Utilizador** (ícone de engrenagem) > **Avançado** > desative a opção **Aceleração de Hardware** e reinicie o Discord.
+  </Step>
+  <Step title="Executar o Discord como Administrador" subtitle="1 min">
+    Feche o Discord completamente na bandeja do sistema, clique com o botão direito no ícone do Discord no ambiente de trabalho e selecione **Executar como administrador**.
+  </Step>
+</Steps>
+
+Para confirmar se o passo funcionou, verifique se a transmissão do ecrã ou do jogo passa a aparecer na área central por baixo de "Streams ativos"[cite: 1].
+
+<Elicitations message="Se o problema persistir, escolha uma opção:">
+  <Elicitation label="Reiniciei e continua preto" query="Já reiniciei a atividade e o Discord como administrador, mas a tela continua preta." />
+  <Elicitation label="Testar noutro canal/servidor" query="Como posso testar se o problema acontece em outros canais do Discord?" />
+</Elicitations>
